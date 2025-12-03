@@ -1,0 +1,16 @@
+{
+    "name": "ccr-proxy-router",
+    "version": "1.0.0",
+    "description": "Proxy router for claude-code-router multi-endpoint routing",
+    "main": "proxy.js",
+    "scripts": {
+        "start": "node proxy.js",
+        "dev": "nodemon proxy.js"
+    },
+    "dependencies": {
+        "http-proxy": "^1.18.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.0"
+    }
+}
