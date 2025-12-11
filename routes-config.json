@@ -17,6 +17,22 @@
             "enabled": true
         },
         {
+            "name": "xuezha",
+            "pathPrefix": "/xuezha",
+            "headerValue": "xuezha",
+            "target": "xuezha,claude-4.5-sonnet",
+            "description": "学渣助手公益中转",
+            "enabled": true
+        },
+        {
+            "name": "elysiver",
+            "pathPrefix": "/elysiver",
+            "headerValue": "elysiver",
+            "target": "elysiver,claude-4.5-sonnet",
+            "description": "elysiver 公益中转",
+            "enabled": true
+        },
+        {
             "name": "glm",
             "pathPrefix": "/glm",
             "headerValue": "glm",
