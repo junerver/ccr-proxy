@@ -9,10 +9,10 @@ const proxy = httpProxy.createProxyServer({});
 const server = http.createServer((req, res) => {
     const url = req.url;
 
-    // 路由入口 1：/anthropic/*
-    if (url.startsWith('/anthropic/')) {
-        req.url = url.replace(/^\/anthropic/, '') || '/';
-        req.headers['x-ccr-route'] = 'anthropic';
+    // 路由入口 1：/blackwhite/*
+    if (url.startsWith('/blackwhite/')) {
+        req.url = url.replace(/^\/blackwhite/, '') || '/';
+        req.headers['x-ccr-route'] = 'blackwhite';
         console.log('[ROUTE anthopic] ->', req.url);
     }
 
@@ -35,5 +35,5 @@ const server = http.createServer((req, res) => {
 server.listen(8080, () => {
     console.log('🔶 Node CCR Proxy listening → http://127.0.0.1:8080');
     console.log('🔹 /glm/*       → ZhiPu,glm-4.6');
-    console.log('🔹 /anthropic/* → new-api-free,claude-sonnet4-5');
+    console.log('🔹 /blackwhite/* → blackwhite,claude-sonnet-4.5-think');
 });
