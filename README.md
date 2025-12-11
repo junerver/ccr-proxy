@@ -1,397 +1,246 @@
-# CCR Proxy Router
+# CCR 动态路由代理系统
 
-一个基于 CCR 的扩展项目，通过自定义路由器和 Node.js 代理中间件实现对不同 AI 服务的请求转发和路由管理。
+## 概述
 
-## 项目概述
+这是一个支持动态配置、热重载的 CCR (Claude Code Router) 反向代理系统。通过配置文件管理路由规则，无需修改代码即可扩展新的端点。
 
-本项目解决了 CCR（Claude Code Router）在多服务环境下的路由分发问题，允许通过不同的 HTTP 端点访问不同的 AI 服务后端，同时保持与 CCR 的原生兼容性。
+## 架构改进
 
-## 核心功能
+### 原有问题
 
-### 🚀 多服务路由支持
+- ❌ 路由规则硬编码在 `custom-router.js` 和 `proxy.js` 中
+- ❌ 添加新路由需要修改代码并重启服务
+- ❌ 维护困难，配置分散
 
-- **Anthropic Claude 中转**: 通过 `/blackwhite/*` 路由到 `blackwhite,claude-sonnet-4.5-think`
-- **智谱 GLM**: 通过 `/glm/*` 路由到 `ZhiPu,glm-4.6`
-- **默认路由**: 未匹配的请求使用 CCR 默认路由策略
+### 改进方案
 
-### 🔧 请求头注入
+- ✅ 统一的 JSON 配置文件 (`routes-config.json`)
+- ✅ 支持热重载，修改配置无需重启服务
+- ✅ 易于扩展，添加新路由只需修改配置文件
+- ✅ 配置集中管理，便于维护
 
-- 自动为请求添加 `X-CCR-ROUTE` 请求头
-- 支持基于路径的路由识别
-- 兼容 CCR 的 `CUSTOM_ROUTER_PATH` 配置
-
-### 🌐 代理中间件
-
-- 基于 Node.js `http-proxy` 模块的反向代理
-- 透明转发，保持原始请求结构
-- 支持请求头修改和路径重写
-
-## 项目结构
+## 文件结构
 
 ```
 CCR/
-├── custom-router.js      # CCR自定义路由器
-├── proxy.js              # Node.js代理中间件
-├── package.json          # 项目依赖配置
-└── README.md            # 项目说明文档
+├── routes-config.json      # 路由配置文件（新增）
+├── custom-router.js        # 自定义路由器（已重构）
+├── proxy.js                # 反向代理服务（已重构）
+├── ecosystem.config.js     # PM2 配置
+└── package.json
 ```
 
-## 快速开始
+## 配置文件说明
 
-### 1. 环境准备
-
-确保已安装 Node.js 环境，然后安装项目依赖：
-
-```bash
-npm install
-```
-
-### 2. 配置 CCR
-
-#### 2.1 CCR 配置文件设置
-
-`CUSTOM_ROUTER_PATH` 不是环境变量，而是 CCR 配置文件 `config.json` 中的一个字段。需要在 CCR 的配置文件中添加该字段指向项目的 `custom-router.js` 文件的**绝对路径**。
-
-**找到 CCR 配置文件位置:**
-
-- Windows: `%APPDATA%\Claude\config.json`
-- macOS: `~/Library/Application Support/Claude/config.json`
-- Linux: `~/.config/Claude/config.json`
-
-**配置示例:**
+### routes-config.json
 
 ```json
 {
-  "CUSTOM_ROUTER_PATH": "E:\\llm\\CCR\\custom-router.js",
-  "other_settings": "..."
+  "routes": [
+    {
+      "name": "blackwhite", // 路由名称
+      "pathPrefix": "/blackwhite", // URL 路径前缀
+      "headerValue": "blackwhite", // Header 标识值
+      "target": "blackwhite,claude-sonnet-4.5-think", // CCR 目标
+      "description": "Anthropic Claude route", // 描述
+      "enabled": true // 是否启用
+    }
+  ],
+  "settings": {
+    "headerName": "x-ccr-route", // 自定义 Header 名称
+    "logFile": "/tmp/ccr_custom_router.log", // 日志文件路径
+    "autoReload": true, // 是否自动重载
+    "reloadInterval": 5000 // 重载检查间隔（毫秒）
+  }
 }
 ```
 
-**不同操作系统的路径格式:**
+## 如何添加新路由
 
-**Windows:**
+### 方法 1: 直接编辑配置文件
+
+编辑 `routes-config.json`，在 `routes` 数组中添加新路由：
 
 ```json
 {
-  "CUSTOM_ROUTER_PATH": "E:\\llm\\CCR\\custom-router.js"
+  "name": "openai",
+  "pathPrefix": "/openai",
+  "headerValue": "openai",
+  "target": "OpenAI,gpt-4",
+  "description": "OpenAI GPT-4 route",
+  "enabled": true
 }
 ```
 
-**Linux/macOS:**
+保存后，代理服务会自动检测并重载配置（无需重启）。
 
-```json
-{
-  "CUSTOM_ROUTER_PATH": "/absolute/path/to/your/CCR/custom-router.js"
-}
-```
+### 方法 2: 使用命令行工具（可选）
 
-**⚠️ 重要提示:**
-
-- 必须使用**绝对路径**，相对路径可能导致 CCR 无法找到路由文件
-- Windows 路径中需要使用双反斜杠 `\\` 转义
-- 修改配置文件后需要重启 CCR 才能生效
-- 确保指定的文件存在且具有读取权限
-
-#### 2.2 验证配置
-
-1. **检查文件存在性:**
+可以创建一个简单的管理脚本来添加/删除路由：
 
 ```bash
-# Windows
-dir "E:\llm\CCR\custom-router.js"
+# 添加路由
+node manage-routes.js add --name openai --prefix /openai --target "OpenAI,gpt-4"
 
-# Linux/macOS
-ls -la /absolute/path/to/your/CCR/custom-router.js
+# 禁用路由
+node manage-routes.js disable --name openai
+
+# 列出所有路由
+node manage-routes.js list
 ```
 
-2. **重启 CCR 应用** 使配置生效
+## 使用示例
 
-3. **检查 CCR 日志** 确认自定义路由器是否正确加载
-
-#### 2.3 配置文件示例
-
-完整的 CCR `config.json` 配置示例：
-
-```json
-{
-  "CUSTOM_ROUTER_PATH": "E:\\llm\\CCR\\custom-router.js",
-  "API_BASE_URL": "http://127.0.0.1:3456",
-  "PROXY_URL": "http://127.0.0.1:8080",
-  "TIMEOUT": 30000,
-  "MAX_RETRIES": 3
-}
-```
-
-### 3. 启动服务
-
-#### 3.1 快速启动（开发/简单使用）
+### 启动服务
 
 ```bash
-# 开发模式（使用nodemon自动重启）
-npm run dev
+# 开发模式
+node proxy.js
 
-# 生产模式（简单启动）
-npm start
-```
-
-#### 3.2 PM2 生产部署（推荐）
-
-**步骤 1: 安装 PM2**
-
-```bash
-# 全局安装PM2
-npm install -g pm2
-
-# 或使用yarn
-yarn global add pm2
-```
-
-**步骤 2: 使用 PM2 启动项目**
-
-```bash
-# 使用ecosystem.config.js配置文件启动
+# 使用 PM2（生产环境推荐）
 pm2 start ecosystem.config.js
-
-# 查看项目状态
-pm2 status
-
-# 查看实时日志
-pm2 logs ccr-proxy
-
-# 查看特定应用日志
-pm2 logs ccr-proxy --lines 100
-
-# 停止项目
-pm2 stop ccr-proxy
-
-# 重启项目
-pm2 restart ccr-proxy
-
-# 删除项目
-pm2 delete ccr-proxy
 ```
 
-**步骤 3: PM2 开机自启配置**
+### 访问端点
 
 ```bash
-# 保存当前PM2进程列表
-pm2 save
+# 访问 blackwhite 路由
+curl http://localhost:8080/blackwhite/v1/chat/completions
 
-# 生成开机自启脚本
-pm2 startup
+# 访问 glm 路由
+curl http://localhost:8080/glm/v1/chat/completions
 
-# 根据提示执行生成的命令（通常需要sudo权限）
-# 例如：sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u <username> --hp /home/<username>
+# 使用默认路由
+curl http://localhost:8080/v1/chat/completions
 ```
 
-**步骤 4: 常用 PM2 监控命令**
+### 使用自定义 Header
 
 ```bash
-# 监控所有进程
-pm2 monit
-
-# 查看详细信息
-pm2 show ccr-proxy
-
-# 查看日志文件位置
-pm2 show ccr-proxy | grep log path
-
-# 重载配置（不重启进程）
-pm2 reload ccr-proxy
-
-# 查看PM2版本和状态
-pm2 --version
-pm2 list
+curl -H "x-ccr-route: blackwhite" http://localhost:8080/v1/chat/completions
 ```
 
-**⚡ 高级 PM2 配置**
+## 热重载功能
 
-- **集群模式**: 将 `ecosystem.config.js` 中的 `instances` 改为 `'max'` 启用多进程
-- **内存限制**: 当进程超过 `max_memory_restart` 设定的内存时自动重启
-- **环境切换**: 使用 `pm2 start ecosystem.config.js --env development` 启动开发环境
+### 自动热重载
 
-服务启动后将在 `http://127.0.0.1:8080` 提供代理服务。
+- `proxy.js` 使用 `fs.watch()` 监听配置文件变化
+- `custom-router.js` 每次请求时检查文件修改时间
+- 配置修改后自动生效，无需重启服务
 
-### 4. 使用方式
+### 手动重载（可选）
 
-#### 访问 Anthropic Claude 中转
-
-```bash
-curl -X POST http://127.0.0.1:8080/blackwhite/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{"model": "claude-sonnet-4.5-think", "messages": [{"role": "user", "content": "Hello"}]}'
-```
-
-#### 访问智谱 GLM
-
-```bash
-curl -X POST http://127.0.0.1:8080/glm/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model": "glm-4.6", "messages": [{"role": "user", "content": "你好"}]}'
-```
-
-## 核心组件
-
-### custom-router.js
-
-CCR 的自定义路由器，负责根据请求头或路径信息进行服务路由选择。
-
-#### 主要功能
-
-1. **请求头识别**: 读取 `X-CCR-ROUTE` 请求头
-2. **路径识别**: 支持 `/blackwhite/*` 和 `/glm/*` 路径匹配
-3. **内容路由**: 基于消息内容的智能路由（如代码解释默认使用 Claude）
-4. **日志记录**: 详细的路由决策日志
-
-#### 路由规则
+如果需要手动触发重载：
 
 ```javascript
-// Anthropic路由
-if (headerRoute === "blackwhite" || path.startsWith("/blackwhite")) {
-  return "blackwhite,claude-sonnet-4.5-think";
-}
-
-// GLM路由
-if (headerRoute === "glm" || path.startsWith("/glm")) {
-  return "ZhiPu,glm-4.6";
-}
-
-// 内容路由
-if (userMessage.includes("explain this code")) {
-  return "new-api-free,claude-sonnet4-5";
-}
+const router = require("./custom-router");
+router.reloadConfig();
 ```
 
-### proxy.js
+## 路由匹配逻辑
 
-基于 `http-proxy` 的反向代理中间件，负责 HTTP 请求的接收和转发。
+优先级：路径前缀 > Header 标识 > 默认路由
 
-#### 核心功能
+1. **路径前缀匹配**: `/blackwhite/xxx` → blackwhite 路由
+2. **Header 匹配**: `x-ccr-route: glm` → glm 路由
+3. **默认路由**: 其他请求 → CCR 默认处理
 
-1. **路径重写**: 移除路由前缀，转发纯净路径给 CCR
-2. **请求头注入**: 自动添加 `X-CCR-ROUTE` 请求头
-3. **代理转发**: 将修改后的请求转发到 CCR 服务端
-4. **路由映射**: 维护路径到服务的映射关系
+## 日志
 
-#### 代理逻辑
-
-```javascript
-// Anthropic路径处理
-if (url.startsWith("/blackwhite/")) {
-  req.url = url.replace(/^\/blackwhite/, "") || "/";
-  req.headers["x-ccr-route"] = "blackwhite";
-}
-
-// GLM路径处理
-else if (url.startsWith("/glm/")) {
-  req.url = url.replace(/^\/glm/, "") || "/";
-  req.headers["x-ccr-route"] = "glm";
-}
-```
-
-## 配置说明
-
-### 端口配置
-
-- **代理服务端口**: `8080` (可在 `proxy.js` 中修改)
-- **CCR 服务端口**: `3456` (可在 `proxy.js` 中修改 `CCR_TARGET`)
-
-### 路由配置
-
-路由规则可在 `custom-router.js` 中修改：
-
-```javascript
-// 添加新的路由规则
-if (headerRoute === "new-service" || path.startsWith("/new-service")) {
-  return "service-provider,model-name";
-}
-```
-
-### 日志配置
-
-日志文件路径可在 `custom-router.js` 中修改：
-
-```javascript
-const LOGFILE = "/tmp/ccr_custom_router.log";
-```
-
-## 部署建议
-
-### 开发环境
+路由日志默认写入 `/tmp/ccr_custom_router.log`，可在配置文件中修改：
 
 ```bash
-# 使用nodemon自动重启
-npm run dev
-```
-
-### 生产环境
-
-```bash
-# 使用PM2管理进程
-pm2 start proxy.js --name "ccr-proxy-router"
-
-# 或使用systemd
-sudo systemctl start ccr-proxy-router
-```
-
-### Docker 部署
-
-```dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 8080
-CMD ["node", "proxy.js"]
-```
-
-## 监控和调试
-
-### 日志查看
-
-```bash
-# 查看代理服务日志
-tail -f /var/log/ccr-proxy-router.log
-
-# 查看路由决策日志
+# 查看路由日志
 tail -f /tmp/ccr_custom_router.log
+
+# 查看代理日志
+pm2 logs proxy
 ```
 
-### 常见问题排查
+## 配置示例
 
-1. **路由不生效**: 检查 `CUSTOM_ROUTER_PATH` 环境变量设置
-2. **代理连接失败**: 确认 CCR 服务在 `3456` 端口正常运行
-3. **请求头丢失**: 检查代理中间件是否正确添加 `X-CCR-ROUTE` 头
+### 多端点配置
 
-## 扩展功能
-
-### 添加新的 AI 服务
-
-1. 在 `proxy.js` 中添加新的路径匹配规则
-2. 在 `custom-router.js` 中添加对应的路由逻辑
-3. 重启服务使配置生效
-
-### 负载均衡支持
-
-可扩展 `custom-router.js` 实现负载均衡：
-
-```javascript
-// 简单轮询示例
-const anthropicInstances = ["anthropic-1", "anthropic-2"];
-const currentInstance = anthropicInstances[counter % anthropicInstances.length];
-counter++;
-return `${currentInstance},claude-sonnet4-5`;
+```json
+{
+  "routes": [
+    {
+      "name": "anthropic",
+      "pathPrefix": "/anthropic",
+      "headerValue": "anthropic",
+      "target": "blackwhite,claude-sonnet-4.5-think",
+      "description": "Anthropic Claude",
+      "enabled": true
+    },
+    {
+      "name": "zhipu",
+      "pathPrefix": "/zhipu",
+      "headerValue": "zhipu",
+      "target": "ZhiPu,glm-4.6",
+      "description": "ZhiPu GLM",
+      "enabled": true
+    },
+    {
+      "name": "openai",
+      "pathPrefix": "/openai",
+      "headerValue": "openai",
+      "target": "OpenAI,gpt-4-turbo",
+      "description": "OpenAI GPT-4 Turbo",
+      "enabled": true
+    },
+    {
+      "name": "gemini",
+      "pathPrefix": "/gemini",
+      "headerValue": "gemini",
+      "target": "Google,gemini-pro",
+      "description": "Google Gemini Pro",
+      "enabled": false
+    }
+  ],
+  "settings": {
+    "headerName": "x-ccr-route",
+    "logFile": "/var/log/ccr_router.log",
+    "autoReload": true
+  }
+}
 ```
 
-## 许可证
+## 优势
 
-MIT License
+1. **易于维护**: 配置集中在一个 JSON 文件中
+2. **热重载**: 修改配置后自动生效，无需重启
+3. **灵活扩展**: 添加新路由只需编辑配置文件
+4. **开关控制**: 通过 `enabled` 字段快速启用/禁用路由
+5. **清晰的日志**: 记录所有路由匹配和转发信息
 
-## 贡献指南
+## 注意事项
 
-欢迎提交 Issue 和 Pull Request 来改进项目。
+1. 配置文件格式必须是有效的 JSON
+2. `pathPrefix` 应该以 `/` 开头，不应以 `/` 结尾
+3. 修改配置后，`proxy.js` 会立即生效，`custom-router.js` 在下次请求时生效
+4. 确保 CCR 服务已启动在 `http://127.0.0.1:3456`
+5. 禁用的路由（`enabled: false`）会被跳过
 
----
+## 故障排查
 
-**注意**: 本项目依赖于 CCR 的正常运行，请确保在使用前正确安装和配置 CCR。
+### 配置未生效
+
+- 检查 JSON 格式是否正确
+- 查看日志文件确认配置是否加载成功
+- 确认文件保存后等待几秒钟
+
+### 代理无法连接
+
+- 确认 CCR 服务是否运行
+- 检查 `CCR_TARGET` 端口是否正确
+- 查看 `pm2 logs` 获取详细错误信息
+
+## 未来扩展
+
+可以进一步增强的功能：
+
+- Web 管理界面
+- API 接口管理路由
+- 路由统计和监控
+- 负载均衡支持
+- 高级匹配规则（正则表达式）

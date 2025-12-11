@@ -1,0 +1,34 @@
+{
+    "routes": [
+        {
+            "name": "blackwhite",
+            "pathPrefix": "/blackwhite",
+            "headerValue": "blackwhite",
+            "target": "blackwhite,claude-sonnet-4.5-think",
+            "description": "黑与白公益站中转",
+            "enabled": true
+        },
+        {
+            "name": "kfc",
+            "pathPrefix": "/kfc",
+            "headerValue": "kfc",
+            "target": "kfc,cursor2-claude-4.1-opus",
+            "description": "kfc公益中转",
+            "enabled": true
+        },
+        {
+            "name": "glm",
+            "pathPrefix": "/glm",
+            "headerValue": "glm",
+            "target": "ZhiPu,glm-4.6",
+            "description": "ZhiPu GLM route",
+            "enabled": true
+        }
+    ],
+    "settings": {
+        "headerName": "x-ccr-route",
+        "logFile": "/tmp/ccr_custom_router.log",
+        "autoReload": true,
+        "reloadInterval": 5000
+    }
+}
