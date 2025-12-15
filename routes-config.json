@@ -28,7 +28,7 @@
             "name": "elysiver",
             "pathPrefix": "/elysiver",
             "headerValue": "elysiver",
-            "target": "elysiver,claude-4.5-sonnet",
+            "target": "elysiver,claude-sonnet-4-5",
             "description": "elysiver 公益中转",
             "enabled": true
         },
