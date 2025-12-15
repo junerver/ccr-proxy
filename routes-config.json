@@ -33,6 +33,14 @@
             "enabled": true
         },
         {
+            "name": "bohe",
+            "pathPrefix": "/bohe",
+            "headerValue": "bohe",
+            "target": "bohe,claude-sonnet-4-5",
+            "description": "薄荷 公益中转",
+            "enabled": true
+        },
+        {
             "name": "glm",
             "pathPrefix": "/glm",
             "headerValue": "glm",
